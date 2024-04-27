@@ -38,7 +38,10 @@ typedef struct linkLayer{
 #define FLAG_RCV 1
 #define A_RCV 2
 #define C_RCV 3
-#define BCC_OK 4
+#define BCC1_OK 4
+#define DATA_RCV 5
+#define BCC2_OK 6
+
 
 #define DATA_SENT 5
 #define POSITIVE_ACK 6

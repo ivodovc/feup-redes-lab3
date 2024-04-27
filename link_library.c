@@ -29,7 +29,7 @@ int llopen(linkLayer connectionParameters){
 
     int fd, c, res;
     char buf[5];
-    int i, sum = 0, speed = 0;
+    int i;
 
     fd = open(port, O_RDWR | O_NOCTTY );
     if (fd < 0) { perror(port); exit(-1); }
@@ -58,6 +58,7 @@ int llopen(linkLayer connectionParameters){
         return -1;
     }
 
+    // TRANSMITTER SENDS SET and waits for UA
     if (role == TRANSMITTER){
         buf[0]=FLAG;
         buf[1]=RECEIVER_ADDRESS;
@@ -110,14 +111,14 @@ int llopen(linkLayer connectionParameters){
 
             case C_RCV:
                 if (received_byte == (recv[recv_i-2] ^ recv[recv_i-3]))
-                    state = BCC_OK;
+                    state = BCC1_OK;
                 else{
                     state = START;
                     recv_i = 0;
                 }
                 break;
 
-            case BCC_OK:
+            case BCC1_OK:
                 if (received_byte == FLAG)
                     state = STOP;
                     STOP = TRUE;
@@ -125,6 +126,7 @@ int llopen(linkLayer connectionParameters){
         }
     }
 
+    // RECEIVER RESPONDS WITH UA
     if ((role==RECEIVER)){
         buf[0]=FLAG;
         buf[1]=SENDER_ADDRESS;
@@ -138,14 +140,14 @@ int llopen(linkLayer connectionParameters){
 }
 
 int llclose(int fd, linkLayer connectionParameters, int showStatistics){
-    tcflush(fd, TCIOFLUSH);
+
    char port[50];
    int role = connectionParameters.role;
 
     // variable initialization
     int res;
-    char buf[10];
-    char recv[10]; // receive buffer
+    char send_buf[10]; // send buffer
+    char recv_buf[10]; // receive buffer
     char received_byte;
     char state;
     int recv_i=0;
@@ -153,23 +155,20 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
 
     // Transmitter sends DISC and waits for DISC from RECEIVER
     if (role==TRANSMITTER){
-        buf[0]=FLAG;
-        buf[1]=RECEIVER_ADDRESS;
-        buf[2]=CONTROL_DISC;
-        buf[3]=buf[1]^buf[2];
-        buf[4]=FLAG;
-        res = write(fd,buf,5);
-        printf("TRANSMITTER SENDING DISC, %d bytes written\n", res);
+        send_buf[0]=FLAG;
+        send_buf[1]=RECEIVER_ADDRESS;
+        send_buf[2]=CONTROL_DISC;
+        send_buf[3]=send_buf[1]^send_buf[2];
+        send_buf[4]=FLAG;
+        res = write(fd,send_buf,5);
 
         // check for DISC from RECEIVER
         STOP=FALSE;
         recv_i = 0;
         while (STOP==FALSE) {       /* loop for input */
-            printf("State: %d\n", state);
             res = read(fd,(&received_byte),1);   /* read byte by byte */
-            recv[recv_i] = received_byte;
+            recv_buf[recv_i] = received_byte;
             recv_i++;
-            printf("last: %x, before last: %x\n", *(recv-1), *(recv-2));
 
             printf("Received: %x\n", received_byte);
             
@@ -199,30 +198,29 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
                     break;
 
                 case C_RCV:
-                    if (received_byte == (recv[recv_i-2] ^ recv[recv_i-3]))
-                        state = BCC_OK;
+                    if (received_byte == (recv_buf[recv_i-2] ^ recv_buf[recv_i-3]))
+                        state = BCC1_OK;
                     else{
                         state = START;
                         recv_i = 0;
                     }
                     break;
 
-                case BCC_OK:
-                    if (received_byte == FLAG)
-                        state = STOP;
+                case BCC1_OK:
+                    if (received_byte == FLAG){
+                        state = START;
                         STOP = TRUE;
                         break;
+                    }
         }
         // if everything is ok, send back UA
 
-        buf[0]=FLAG;
-        buf[1]=RECEIVER_ADDRESS;
-        buf[2]=CONTROL_UA;
-        buf[3]=buf[1]^buf[2];
-        buf[4]=FLAG;
-        res = write(fd,buf,5);
-        printf("TRANSMITTER, SENDING UA, %d bytes written\n", res);
-        printf("TRANSMITTER DISCONNECT done \n");
+        send_buf[0]=FLAG;
+        send_buf[1]=RECEIVER_ADDRESS;
+        send_buf[2]=CONTROL_UA;
+        send_buf[3]=send_buf[1]^send_buf[2];
+        send_buf[4]=FLAG;
+        res = write(fd,send_buf,5);
 
      }
     }else if (role==RECEIVER){
@@ -233,9 +231,9 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
         recv_i = 0;
         while (STOP==FALSE) {       /* loop for input */
             res = read(fd,(&received_byte),1);   /* read byte by byte */
-            recv[recv_i] = received_byte;
+            recv_buf[recv_i] = received_byte;
             recv_i++;           
-            printf("Receiver state: %d \n", state);
+
             printf("Receiver read byte: %x\n", received_byte);
 
             //WAIT FOR DISC from TRANSMITTER 
@@ -264,15 +262,15 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
                     break;
 
                 case C_RCV:
-                    if (received_byte == (recv[recv_i-2] ^ recv[recv_i-3]))
-                        state = BCC_OK;
+                    if (received_byte == (recv_buf[recv_i-2] ^ recv_buf[recv_i-3]))
+                        state = BCC1_OK;
                     else{
                         state = START;
                         recv_i = 0;
                     }
                     break;
 
-                case BCC_OK:
+                case BCC1_OK:
                     if (received_byte == FLAG)
                         state = STOP;
                         STOP = TRUE;
@@ -281,13 +279,12 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
         }
 
         // DISC received, send back DISC
-        buf[0]=FLAG;
-        buf[1]=SENDER_ADDRESS;
-        buf[2]=CONTROL_DISC;
-        buf[3]=buf[1]^buf[2];
-        buf[4]=FLAG;
-        res = write(fd,buf,5);
-        printf("RECEIVER SENDING DISC, %d bytes written\n", res);
+        send_buf[0]=FLAG;
+        send_buf[1]=SENDER_ADDRESS;
+        send_buf[2]=CONTROL_DISC;
+        send_buf[3]=send_buf[1]^send_buf[2];
+        send_buf[4]=FLAG;
+        res = write(fd,send_buf,5);
 
         // WAIT FOR UA from TRANSMITTER
         // 1. step check for DISC from RECEIVEr
@@ -295,7 +292,7 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
         recv_i = 0;
         while (STOP==FALSE) {       /* loop for input */
             res = read(fd,(&received_byte),1);   /* read byte by byte */
-            recv[recv_i] = received_byte;
+            recv_buf[recv_i] = received_byte;
             recv_i++;
 
             //WAIT FOR DISC from TRANSMITTER 
@@ -324,22 +321,21 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
                     break;
 
                 case C_RCV:
-                    if (received_byte == (recv[recv_i-2] ^ recv[recv_i-3]))
-                        state = BCC_OK;
+                    if (received_byte == (recv_buf[recv_i-2] ^ recv_buf[recv_i-3]))
+                        state = BCC1_OK;
                     else{
                         state = START;
                         recv_i = 0;
                     }
                     break;
 
-                case BCC_OK:
+                case BCC1_OK:
                     if (received_byte == FLAG)
                         state = STOP;
                         STOP = TRUE;
                         break;
             }
         }
-        printf("RECEIVED DISCONNECT done \n");
     }
 
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
@@ -349,8 +345,14 @@ int llclose(int fd, linkLayer connectionParameters, int showStatistics){
     close(fd);
 }
 
+// write STATES
+#define DATA_SENT_0 7
+#define RR_RECEIVED_1 8
+#define DATA_SENT_1 9
+#define RR_RECEIVED_0 10
+
 int llwrite(int fd, char * buffer, int length){
-    
+
     if (length>MAX_PAYLOAD_SIZE){
         return -1;
     }
@@ -376,8 +378,75 @@ int llwrite(int fd, char * buffer, int length){
     int res = write(fd,buf,send_buffer_len);
     printf("WRITING, %d bytes written\n", res);
 
+
+    char state = START;
+    switch (state){
+        // in the first state we send all the data
+        case START:
+            int res = write(fd,buf,send_buffer_len);
+            printf("WRITING, %d bytes written\n", res);
+            state = DATA_SENT_0;
+
+        case 
+    }
+
+
+    
+
 }
 
 int llread(int fd, char * buffer){
     // read character by character until flag is encountered
+    int STOP = FALSE;
+    int i = 0; //index
+    int res = 0;//read bytes
+    int state=START;
+
+    while (STOP==FALSE) {
+        if (i>MAX_PAYLOAD_SIZE){
+            STOP=TRUE;
+        }
+        char received_byte;
+        res = read(fd,(&received_byte),1);   /* read byte by byte */
+        buffer[i] = received_byte;
+        i++;
+
+        switch (state){
+                case START:
+                    if (received_byte == FLAG)
+                        state = FLAG_RCV;
+                    break;
+
+                case FLAG_RCV:
+                    if (received_byte == RECEIVER_ADDRESS)
+                        state = A_RCV;
+                    else{
+                        return -1;
+                    }
+                    break;
+
+                case A_RCV:
+                    // check Ns sequence
+                    int Ns = (received_byte & 0b01000000) >> 7;
+                    state = C_RCV;
+                    break;
+
+                case C_RCV:
+                    if (received_byte == (buffer[i-2] ^ buffer[i-3]))
+                        state = BCC1_OK;
+                    else{
+                        state = START;
+                        i = 0;
+                    }
+                    break;
+
+                case BCC1_OK:
+                    // BCC1 is OK and we are going to read data now
+                    //we continue until we encounter a flag
+                    if (received_byte==FLAG){
+                        STOP = TRUE;
+                    }
+            }
+    }
+    return i;
 }

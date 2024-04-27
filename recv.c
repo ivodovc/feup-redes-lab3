@@ -18,6 +18,7 @@ int main(int argc, char** argv)
     strcpy(connectionParameters.serialPort,"/dev/ttyS1");
     connectionParameters.role = RECEIVER;
     connectionParameters.baudRate = 38400;
+
     /*if ( (argc < 2) ||
          ((strcmp("/dev/ttyS0", argv[1])!=0) &&
           (strcmp("/dev/ttyS1", argv[1])!=0) )) {
@@ -28,10 +29,11 @@ int main(int argc, char** argv)
     char* port = argv[1];
 
     fd = llopen(connectionParameters);
+    printf("Receiver: Port opened\n");
 
-    printf("Closing ports\n");
+
     llclose(fd, connectionParameters, 0);
-    printf("Done ports\n");
+    printf("Receiver: Closed ports\n");
 
 
    sleep(1);
