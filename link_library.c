@@ -383,6 +383,7 @@ int llwrite(int fd, char * buffer, int length){
     switch (state){
         // in the first state we send all the data
         case START:
+            ;
             int res = write(fd,buf,send_buffer_len);
             printf("WRITING, %d bytes written\n", res);
             state = DATA_SENT_0;
@@ -425,6 +426,7 @@ int llread(int fd, char * buffer){
                     break;
 
                 case A_RCV:
+                    ;
                     // check Ns sequence
                     int Ns = (received_byte & 0b01000000) >> 7;
                     state = C_RCV;
