@@ -386,8 +386,7 @@ int llwrite(int fd, char * buffer, int length){
             int res = write(fd,buf,send_buffer_len);
             printf("WRITING, %d bytes written\n", res);
             state = DATA_SENT_0;
-
-        case 
+            break;
     }
 
 
